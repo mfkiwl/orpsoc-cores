@@ -41,11 +41,9 @@
 `include "orpsoc-defines.v"
 
 module orpsoc_top #(
-	parameter       BOOTROM_FILE = "../src/de0_nano/sw/spi_uimage_loader.vh",
-	parameter	uart0_aw = 3,
-        parameter       HV1_SADR = 8'h45,
-        parameter       i2c0_wb_adr_width = 3,
-        parameter       i2c1_wb_adr_width = 3
+	parameter       bootrom_file = "../src/de0_nano_0/sw/spi_uimage_loader.vh",
+        parameter       i2c0_sadr = 8'h45,
+        parameter       i2c1_sadr = 8'h45
 )(
 	input		sys_clk_pad_i,
 	input		rst_n_pad_i,
@@ -74,41 +72,26 @@ module orpsoc_top #(
 	inout	[7:0]	gpio0_io,
 	input	[3:0]	gpio1_i,
 
-`ifdef I2C0
 	inout		i2c0_sda_io,
 	inout		i2c0_scl_io,
-`endif
-`ifdef I2C1
+
 	inout		i2c1_sda_io,
 	inout		i2c1_scl_io,
-`endif
 
-`ifdef SPI0
     output          spi0_sck_o,
     output          spi0_mosi_o,
     input           spi0_miso_i,
- `ifdef SPI0_SLAVE_SELECTS
     output          spi0_ss_o,
- `endif
-`endif
 
-`ifdef SPI1
     output          spi1_sck_o,
     output          spi1_mosi_o,
     input           spi1_miso_i,
- `ifdef SPI1_SLAVE_SELECTS
     output          spi1_ss_o,
- `endif
-`endif
 
-`ifdef SPI2
     output          spi2_sck_o,
     output          spi2_mosi_o,
     input           spi2_miso_i,
- `ifdef SPI2_SLAVE_SELECTS
     output          spi2_ss_o,
- `endif
-`endif
 
     output          accelerometer_cs_o,
     input           accelerometer_irq_i
@@ -197,7 +180,7 @@ tap_top jtag_tap0 (
 	.debug_tdi_i			(dbg_if_tdo)
 );
 
-`elsif ALTERA_JTAG_TAP
+`else
 ////////////////////////////////////////////////////////////////////////
 //
 // ALTERA Virtual JTAG TAP
@@ -405,6 +388,19 @@ mor1kx #(
 
 	.irq_i(or1k_irq),
 
+	.traceport_exec_valid_o  (),
+	.traceport_exec_pc_o     (),
+	.traceport_exec_insn_o   (),
+	.traceport_exec_wbdata_o (),
+	.traceport_exec_wbreg_o  (),
+	.traceport_exec_wben_o   (),
+
+	.multicore_coreid_i   (32'd0),
+	.multicore_numcores_i (32'd0),
+
+	.snoop_adr_i (32'd0),
+	.snoop_en_i  (1'b0),
+
 	.du_addr_i(or1k_dbg_adr_i[15:0]),
 	.du_stb_i(or1k_dbg_stb_i),
 	.du_dat_i(or1k_dbg_dat_i),
@@ -489,7 +485,7 @@ adbg_top dbg_if0 (
    
 wb_bootrom
   #(.DEPTH (WB_BOOTROM_MEM_DEPTH),
-    .MEMFILE (BOOTROM_FILE))
+    .MEMFILE (bootrom_file))
    bootrom
      (//Wishbone Master interface
       .wb_clk_i (wb_clk),
@@ -529,6 +525,7 @@ wb_sdram_ctrl #(
 `endif
 	.CLK_FREQ_MHZ			(100),	// sdram_clk freq in MHZ
 	.POWERUP_DELAY			(200),	// power up delay in us
+	.REFRESH_MS			(32),	// delay between refresh cycles im ms
 	.WB_PORTS			(2),	// Number of wishbone ports
 	.ROW_WIDTH			(13),	// Row width
 	.COL_WIDTH			(9),	// Column width
@@ -587,7 +584,7 @@ uart_top uart16550_0 (
 	// Wishbone slave interface
 	.wb_clk_i	(wb_clk),
 	.wb_rst_i	(wb_rst),
-	.wb_adr_i	(wb_m2s_uart0_adr[uart0_aw-1:0]),
+	.wb_adr_i	(wb_m2s_uart0_adr[2:0]),
 	.wb_dat_i	(wb_m2s_uart0_dat),
 	.wb_we_i	(wb_m2s_uart0_we),
 	.wb_stb_i	(wb_m2s_uart0_stb),
@@ -610,7 +607,6 @@ uart_top uart16550_0 (
 	.dcd_pad_i	(1'b0)
 );
 
-`ifdef I2C0
 ////////////////////////////////////////////////////////////////////////
 //
 // I2C controller 0
@@ -629,14 +625,14 @@ wire 		sda0_padoen_o;
 i2c_master_top
  #
  (
-  .DEFAULT_SLAVE_ADDR(HV1_SADR)
+  .DEFAULT_SLAVE_ADDR(i2c0_sadr)
  )
 i2c0
   (
    .wb_clk_i			     (wb_clk),
    .wb_rst_i			     (wb_rst),
    .arst_i			     (wb_rst),
-   .wb_adr_i			     (wb_m2s_i2c0_adr[i2c0_wb_adr_width-1:0]),
+   .wb_adr_i			     (wb_m2s_i2c0_adr[2:0]),
    .wb_dat_i			     (wb_m2s_i2c0_dat),
    .wb_we_i			     (wb_m2s_i2c0_we),
    .wb_cyc_i			     (wb_m2s_i2c0_cyc),
@@ -663,18 +659,6 @@ assign i2c0_scl_io = scl0_padoen_o ? 1'bz : scl0_pad_o;
 assign i2c0_sda_io = sda0_padoen_o ? 1'bz : sda0_pad_o;
 
 ////////////////////////////////////////////////////////////////////////
-`else // !`ifdef I2C0
-
-assign wb_s2m_i2c0_dat = 0;
-assign wb_s2m_i2c0_ack = 0;
-assign wb_s2m_i2c0_err = 0;
-assign wb_s2m_i2c0_rty = 0;
-
-////////////////////////////////////////////////////////////////////////
-`endif // !`ifdef I2C0
-
-`ifdef I2C1
-////////////////////////////////////////////////////////////////////////
 //
 // I2C controller 1
 //
@@ -692,14 +676,14 @@ wire 		sda1_padoen_o;
 i2c_master_top
  #
  (
-  .DEFAULT_SLAVE_ADDR(HV1_SADR)
+  .DEFAULT_SLAVE_ADDR(i2c1_sadr)
  )
 i2c1
   (
    .wb_clk_i			     (wb_clk),
    .wb_rst_i			     (wb_rst),
    .arst_i			     (wb_rst),
-   .wb_adr_i			     (wb_m2s_i2c1_adr[i2c1_wb_adr_width-1:0]),
+   .wb_adr_i			     (wb_m2s_i2c1_adr[2:0]),
    .wb_dat_i			     (wb_m2s_i2c1_dat),
    .wb_we_i			     (wb_m2s_i2c1_we),
    .wb_cyc_i			     (wb_m2s_i2c1_cyc),
@@ -725,18 +709,6 @@ assign wb_s2m_i2c1_rty = 0;
 assign i2c1_scl_io = scl1_padoen_o ? 1'bz : scl1_pad_o;
 assign i2c1_sda_io = sda1_padoen_o ? 1'bz : sda1_pad_o;
 
-////////////////////////////////////////////////////////////////////////
-`else // !`ifdef I2C1
-
-assign wb_s2m_i2c1_dat = 0;
-assign wb_s2m_i2c1_ack = 0;
-assign wb_s2m_i2c1_err = 0;
-assign wb_s2m_i2c1_rty = 0;
-
-////////////////////////////////////////////////////////////////////////
-`endif // !`ifdef I2C1
-
-`ifdef SPI0
 ////////////////////////////////////////////////////////////////////////
 //
 // SPI0 controller
@@ -771,20 +743,13 @@ simple_spi spi0(
 	// Outputs
 	.inta_o		(spi0_irq),
 	.sck_o		(spi0_sck_o),
- `ifdef SPI0_SLAVE_SELECTS
 	.ss_o		(spi0_ss_o),
- `else
-	.ss_o		(),
- `endif
 	.mosi_o		(spi0_mosi_o),
 
 	// Inputs
 	.miso_i		(spi0_miso_i)
 );
 
-`endif
-
-`ifdef SPI1
 ////////////////////////////////////////////////////////////////////////
 //
 // SPI1 controller
@@ -819,20 +784,13 @@ simple_spi spi1(
 	// Outputs
 	.inta_o		(spi1_irq),
 	.sck_o		(spi1_sck_o),
- `ifdef SPI1_SLAVE_SELECTS
 	.ss_o		(spi1_ss_o),
- `else
-	.ss_o		(),
- `endif
 	.mosi_o		(spi1_mosi_o),
 
 	// Inputs
 	.miso_i		(spi1_miso_i)
 );
 
-`endif
-
-`ifdef SPI2
 ////////////////////////////////////////////////////////////////////////
 //
 // SPI2 controller
@@ -867,18 +825,12 @@ simple_spi spi2(
 	// Outputs
 	.inta_o		(spi2_irq),
 	.sck_o		(spi2_sck_o),
- `ifdef SPI2_SLAVE_SELECTS
 	.ss_o		(spi2_ss_o),
- `else
-	.ss_o		(),
- `endif
 	.mosi_o		(spi2_mosi_o),
 
 	// Inputs
 	.miso_i		(spi2_miso_i)
 );
-
-`endif
 
 ////////////////////////////////////////////////////////////////////////
 //
@@ -955,32 +907,12 @@ assign or1k_irq[2] = uart0_irq;
 assign or1k_irq[3] = 0;
 assign or1k_irq[4] = 0;
 assign or1k_irq[5] = 0;
-`ifdef SPI0
-   assign or1k_irq[6] = spi0_irq;
-`else
-   assign or1k_irq[6] = 0;
-`endif
-`ifdef SPI1
-   assign or1k_irq[7] = spi1_irq;
-`else
-   assign or1k_irq[7] = 0;
-`endif
-`ifdef SPI2
-   assign or1k_irq[8] = spi1_irq;
-`else
-   assign or1k_irq[8] = 0;
-`endif
+assign or1k_irq[6] = spi0_irq;
+assign or1k_irq[7] = spi1_irq;
+assign or1k_irq[8] = spi1_irq;
 assign or1k_irq[9] = 0;
-`ifdef I2C0
-   assign or1k_irq[10] = i2c0_irq;
-`else
-   assign or1k_irq[10] = 0;
-`endif
-`ifdef I2C1
-   assign or1k_irq[11] = i2c1_irq;
-`else
-   assign or1k_irq[11] = 0;
-`endif
+assign or1k_irq[10] = i2c0_irq;
+assign or1k_irq[11] = i2c1_irq;
 assign or1k_irq[12] = 0;
 assign or1k_irq[13] = 0;
 assign or1k_irq[14] = 0;

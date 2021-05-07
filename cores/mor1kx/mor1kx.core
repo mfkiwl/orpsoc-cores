@@ -4,8 +4,9 @@ description = "mor1kx CPU"
 
 [verilog]
 src_files =
+ rtl/verilog/mor1kx_branch_predictor_simple.v
+ rtl/verilog/mor1kx_branch_predictor_saturation_counter.v
  rtl/verilog/mor1kx_branch_prediction.v
- rtl/verilog/mor1kx_bus_if_avalon.v
  rtl/verilog/mor1kx_bus_if_wb32.v
  rtl/verilog/mor1kx_cache_lru.v
  rtl/verilog/mor1kx_cfgrs.v
@@ -55,9 +56,17 @@ include_files =
 
 tb_src_files = bench/verilog/mor1kx_monitor.v
 
-[plusargs]
-trace_enable = bool "Enable trace"
-trace_to_screen = bool "Output trace to screen"
+[parameter trace_enable]
+datatype    = bool
+description = Enable mor1kx instruction trace
+paramtype   = plusarg
+scope       = public
+
+[parameter trace_to_screen]
+datatype    = bool
+description = Output mor1kx instruction trace to screen
+paramtype   = plusarg
+scope       = public
 
 [provider]
 name = github

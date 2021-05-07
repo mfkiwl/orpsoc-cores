@@ -1,6 +1,6 @@
-module orpsoc_top #(
-		parameter UART_SIM = 0
-)(
+module orpsoc_top
+  #(parameter MEM_SIZE = 32'h02000000)
+(
 		input wb_clk_i,
 		input wb_rst_i,
 		output tdo_pad_o,
@@ -11,8 +11,6 @@ module orpsoc_top #(
 
 localparam wb_aw = 32;
 localparam wb_dw = 32;
-
-localparam MEM_SIZE_BITS = 25;
 
 ////////////////////////////////////////////////////////////////////////
 //
@@ -45,7 +43,7 @@ tap_top jtag_tap0 (
 	.trst_pad_i			(wb_rst),
 	.tdi_pad_i			(tdi_pad_i),
 
-	.tdo_padoe_o			(tdo_padoe_o),
+	.tdo_padoe_o			(),
 
 	.tdo_o				(jtag_tap_tdo),
 
@@ -208,14 +206,13 @@ mor1kx #(
 // Generic main RAM
 //
 ////////////////////////////////////////////////////////////////////////
-ram_wb_b3 #(
-	.mem_size_bytes	(2**MEM_SIZE_BITS*(wb_dw/8)),
-	.mem_adr_width	(MEM_SIZE_BITS)
+wb_ram #(
+	.depth	(MEM_SIZE/4)
 ) wb_bfm_memory0 (
 	//Wishbone Master interface
 	.wb_clk_i	(wb_clk_i),
 	.wb_rst_i	(wb_rst_i),
-	.wb_adr_i	(wb_m2s_mem_adr & (2**MEM_SIZE_BITS-1)),
+	.wb_adr_i	(wb_m2s_mem_adr[$clog2(MEM_SIZE)-3:0]),
 	.wb_dat_i	(wb_m2s_mem_dat),
 	.wb_sel_i	(wb_m2s_mem_sel),
 	.wb_we_i	(wb_m2s_mem_we),
@@ -225,63 +222,39 @@ ram_wb_b3 #(
 	.wb_bte_i	(wb_m2s_mem_bte),
 	.wb_dat_o	(wb_s2m_mem_dat),
 	.wb_ack_o	(wb_s2m_mem_ack),
-	.wb_err_o	(wb_s2m_mem_err),
-	.wb_rty_o	(wb_s2m_mem_rty)
+	.wb_err_o	(wb_s2m_mem_err)
 );
+   assign wb_s2m_mem_rty = 1'b0;
 
 wire uart_irq;
 
-wb_uart_wrapper #(
-	.DEBUG	(0),
-	.SIM	(UART_SIM)
-) wb_uart_wrapper0 (
+uart_top #(
+	.debug	(0),
+	.SIM	(1)
+) uart16550 (
 	//Wishbone Master interface
 	.wb_clk_i	(wb_clk_i),
 	.wb_rst_i	(wb_rst_i),
-	.rx		(1'b0),
-	.tx		(uart),
-        .int_o		(uart_irq),
-	.wb_adr_i	(wb_m2s_uart_adr),
+	.wb_adr_i	(wb_m2s_uart_adr[2:0]),
 	.wb_dat_i	(wb_m2s_uart_dat),
+	.wb_sel_i	(4'h0),
 	.wb_we_i	(wb_m2s_uart_we),
 	.wb_cyc_i	(wb_m2s_uart_cyc),
 	.wb_stb_i	(wb_m2s_uart_stb),
-	.wb_cti_i	(wb_m2s_uart_cti),
-	.wb_bte_i	(wb_m2s_uart_bte),
 	.wb_dat_o	(wb_s2m_uart_dat),
 	.wb_ack_o	(wb_s2m_uart_ack),
-	.wb_err_o	(wb_s2m_uart_err),
-	.wb_rty_o	(wb_s2m_uart_rty)
+        .int_o		(uart_irq),
+	.srx_pad_i	(1'b0),
+	.stx_pad_o	(),
+	.rts_pad_o	(),
+	.cts_pad_i	(1'b0),
+	.dtr_pad_o	(),
+	.dsr_pad_i	(1'b0),
+	.ri_pad_i	(1'b0),
+	.dcd_pad_i	(1'b0)
 );
-
-`ifdef VERILATOR
-wire [7:0]	uart_rx_data;
-wire		uart_rx_done;
-
-uart_transceiver uart_transceiver0 (
-	.sys_rst	(wb_rst_i),
-	.sys_clk	(wb_clk_i),
-
-	.uart_rx	(uart),
-	.uart_tx	(),
-
-	.divisor	(16'd26),
-
-	.rx_data	(uart_rx_data),
-	.rx_done	(uart_rx_done),
-
-	.tx_data	(8'h00),
-	.tx_wr		(1'b0),
-	.tx_done	(),
-
-	.rx_break	()
-);
-
-always @(posedge wb_clk_i)
-	if(uart_rx_done)
-		$write("%c", uart_rx_data);
-
-`endif
+   assign wb_s2m_uart_err = 1'b0;
+   assign wb_s2m_uart_rty = 1'b0;
 
 ////////////////////////////////////////////////////////////////////////
 //

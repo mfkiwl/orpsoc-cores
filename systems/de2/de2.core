@@ -1,0 +1,45 @@
+CAPI=1
+[main]
+depend =
+ adv_debug_sys
+ altera_virtual_jtag
+ gpio
+ jtag_tap-1.13
+ mor1kx-4.1
+ uart16550-1.5.4
+ wb_intercon-1.0
+ wb_sdram_ctrl-r1
+
+simulators =
+ icarus
+ modelsim
+
+[verilog]
+src_files =
+ rtl/verilog/clkgen.v
+ rtl/verilog/orpsoc_top.v
+ backend/rtl/verilog/pll.v
+ rtl/verilog/rom.v
+ rtl/verilog/wb_intercon.v
+
+tb_private_src_files =
+ bench/orpsoc_tb.v
+ bench/uart_decoder.v
+
+include_files =
+ rtl/verilog/include/orpsoc-defines.v
+ rtl/verilog/include/timescale.v
+ rtl/verilog/include/uart_defines.v
+ rtl/verilog/wb_intercon.vh
+
+tb_include_files =
+ bench/test-defines.v
+
+[icarus]
+iverilog_options = -DICARUS_SIM -DSIM
+depend = elf-loader jtag_vpi-r2 mt48lc16m16a2 vlog_tb_utils-1.0 wiredelay
+
+[modelsim]
+vlog_options = +define+SIM +define+MODELSIM_SIM -timescale 1ns/1ps
+vsim_options = -L altera_mf_ver -L altera_mf
+depend = elf-loader jtag_vpi-r2 mt48lc16m16a2 vlog_tb_utils-1.0 wiredelay

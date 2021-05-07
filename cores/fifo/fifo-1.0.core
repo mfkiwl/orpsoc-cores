@@ -2,7 +2,7 @@ CAPI=1
 [main]
 description = Generic FIFO
 simulators = icarus modelsim
-depend = vlog_tb_utils
+depend = vlog_tb_utils-1.0
 
 [verilog]
 src_files =
@@ -20,6 +20,18 @@ tb_private_src_files =
 [plusargs]
 read_rate = str FIFO read rate
 write_rate = str FIFO write rate
+
+[parameter read_rate]
+datatype    = str
+description = FIFO read rate
+paramtype   = plusarg
+scope       = private
+
+[parameter write_rate]
+datatype    = str
+description = FIFO write rate
+paramtype   = plusarg
+scope       = private
 
 [simulator]
 toplevel = fifo_tb

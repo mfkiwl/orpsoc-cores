@@ -26,6 +26,8 @@
 #include <gelf.h>
 #include <fcntl.h>
 
+uint8_t big_endian;
+
 uint8_t *dump_program_data(Elf *elf_object, int *size)
 {
 	uint8_t *buffer = NULL;
@@ -54,9 +56,9 @@ uint8_t *dump_program_data(Elf *elf_object, int *size)
 		printf("Program header %d: addr 0x%08X,", i, (unsigned int)phdr.p_paddr);
 		printf(" size 0x%08X\n", (unsigned int)phdr.p_filesz);
 
-		if (phdr.p_paddr >= max_paddr) {
-			buffer = realloc(buffer, phdr.p_paddr + phdr.p_filesz);
+		if (phdr.p_paddr + phdr.p_filesz >= max_paddr) {
 			max_paddr = phdr.p_paddr + phdr.p_filesz;
+			buffer = realloc(buffer, max_paddr);
 		}
 
 		data = elf_getdata_rawchunk(elf_object, phdr.p_offset, phdr.p_filesz, ELF_T_BYTE);
@@ -77,7 +79,7 @@ uint8_t *dump_section_data(Elf *elf_object, int *size)
 	uint8_t *buffer = NULL;
 	Elf_Data *data = NULL;
 	size_t shdr_num;
-	size_t max_paddr = 0;
+	size_t max_saddr = 0;
 	GElf_Shdr shdr;
 	size_t shstrndx;
 	char *name = NULL;
@@ -110,9 +112,9 @@ uint8_t *dump_section_data(Elf *elf_object, int *size)
 			printf("Loading section %s, size 0x%08X lma 0x%08X\n",
 				name ? name : "??", (unsigned int)shdr.sh_size, (unsigned int)shdr.sh_addr);
 
-			if (shdr.sh_addr >= max_paddr) {
-				buffer = realloc(buffer, shdr.sh_addr + shdr.sh_size);
-				max_paddr = shdr.sh_addr + shdr.sh_size;
+			if (shdr.sh_addr + shdr.sh_size >= max_saddr) {
+				max_saddr = shdr.sh_addr + shdr.sh_size;
+				buffer = realloc(buffer, max_saddr);
 			}
 
 			data = elf_getdata(cur_section, data);
@@ -125,13 +127,14 @@ uint8_t *dump_section_data(Elf *elf_object, int *size)
 		}
 	}
 
-	*size = max_paddr;
+	*size = max_saddr;
 	return buffer;
 }
 
 uint8_t *load_elf_file(char *elf_file_name, int *size)
 {
 	uint8_t *buf = NULL;
+	char *id;
 
 	if (elf_version(EV_CURRENT) == EV_NONE)
 		return NULL;
@@ -156,6 +159,21 @@ uint8_t *load_elf_file(char *elf_file_name, int *size)
 		return NULL;
 	}
 
+	if (( id = elf_getident (elf_object , NULL )) == NULL )
+		printf("getident() failed : %s.",
+		elf_errmsg(-1));
+
+	if (id[EI_DATA] == ELFDATA2LSB)
+		big_endian = 0;
+	else if (id[EI_DATA] == ELFDATA2MSB)
+		big_endian = 1;
+	else {
+		printf("%s has unknown endianness '%d'\n", elf_file_name, id[EI_DATA]);
+		elf_end(elf_object);
+		close(fd);
+		return NULL;
+	}
+
 	buf = dump_program_data(elf_object, size);
 
 	if (buf == NULL)
@@ -169,8 +187,12 @@ uint8_t *load_elf_file(char *elf_file_name, int *size)
 
 unsigned int read_32(uint8_t *bin_file, unsigned int address)
 {
+  if (big_endian)
 	return (bin_file[address] << 24) | (bin_file[address + 1] << 16) |
 	       (bin_file[address + 2] << 8) | (bin_file[address + 3]);
+  else
+	return (bin_file[address + 3] << 24) | (bin_file[address + 2] << 16) |
+	       (bin_file[address + 1] <<  8) | (bin_file[address + 0]);
 }
 
 unsigned short read_16(uint8_t *bin_file, unsigned int address)

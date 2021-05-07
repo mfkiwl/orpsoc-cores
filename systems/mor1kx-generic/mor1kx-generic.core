@@ -2,18 +2,12 @@ CAPI=1
 [main]
 description = "Minimal mor1kx simulation environment"
 depend =
- mmuart
- mor1kx
- ram_wb
- uart16550-1.5
- uart16550_model
- vlog_tb_utils
- verilator_tb_utils
- wb_bfm
- wb_intercon
- jtag_vpi
- jtag_tap
  adv_debug_sys
+ >=jtag_tap-1.13
+ mor1kx
+ >=uart16550-1.5.4
+ >=wb_intercon-1.0
+ >=wb_ram-1.0
 
 simulators = icarus modelsim
 
@@ -26,13 +20,25 @@ tb_private_src_files =
 include_files =
  rtl/verilog/wb_intercon.vh
  bench/verilog/include/test-defines.v
- bench/verilog/include/uart_defines.v
- bench/verilog/include/timescale.v
 
 [icarus]
+depend = elf-loader >=jtag_vpi-r2 >=vlog_tb_utils-1.0
 iverilog_options = -DSIM
 
+[modelsim]
+depend = elf-loader >=jtag_vpi-r2 >=vlog_tb_utils-1.0
+
+[rivierapro]
+depend = elf-loader >=jtag_vpi-r2 >=vlog_tb_utils-1.0
+
 [verilator]
+depend = verilator_tb_utils
 verilator_options = -Wno-fatal --trace
 tb_toplevel   = bench/verilator/tb.cpp
 top_module    = orpsoc_top
+
+[parameter clear_ram]
+datatype    = bool
+description = Preset RAM to a known value (0)
+paramtype   = plusarg
+scope       = private
